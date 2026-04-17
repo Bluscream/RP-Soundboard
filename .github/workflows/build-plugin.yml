@@ -16,10 +16,7 @@ env:
 jobs:
   #### x86 WINDOWS build ####
   build-win32:
-    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
-    # You can convert this to a matrix build if you need cross-platform coverage.
-    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     steps:
     - uses: actions/checkout@v4
@@ -36,13 +33,14 @@ jobs:
         cache-name: cache-ffmpeg-build-win32
       with:
         path: ${{github.workspace}}/ffmpeg/build/x86
-        key: ${{env.cache-name}}-${{hashFiles('submodule_status', 'ffmpeg/build_ffmpeg.sh')}}
+        key: ${{env.cache-name}}-${{hashFiles('submodule_status', 'ffmpeg/build_ffmpeg.sh', '.github/workflows/build-plugin.yml')}}
     
     # 1. Setup MSVC environment variables (cl.exe, link.exe, etc.)
     - if: ${{ steps.cache-ffmpeg-restore.outputs.cache-hit != 'true' }}
       name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
       with:
+        toolset: 14.2
         arch: x86
     
     - if: ${{ steps.cache-ffmpeg-restore.outputs.cache-hit != 'true' }}
@@ -94,7 +92,7 @@ jobs:
 
     - name: Configure CMake
       run: >
-        cmake -G "Visual Studio 17 2022" -A Win32
+        cmake -G "Visual Studio 17 2022" -A Win32 -T v142
         -B ${{github.workspace}}/build
         -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
         -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
@@ -114,7 +112,7 @@ jobs:
 
   #### x64 WINDOWS build ####
   build-win64:
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     steps:
     - uses: actions/checkout@v4
@@ -131,13 +129,14 @@ jobs:
         cache-name: cache-ffmpeg-build-win64
       with:
         path: ${{github.workspace}}/ffmpeg/build/x86_64
-        key: ${{env.cache-name}}-${{hashFiles('submodule_status', 'ffmpeg/build_ffmpeg.sh')}}
+        key: ${{env.cache-name}}-${{hashFiles('submodule_status', 'ffmpeg/build_ffmpeg.sh', '.github/workflows/build-plugin.yml')}}
     
     # 1. Setup MSVC environment variables (cl.exe, link.exe, etc.)
     - if: ${{ steps.cache-ffmpeg-restore.outputs.cache-hit != 'true' }}
       name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
       with:
+        toolset: 14.2
         arch: x64
     
     - if: ${{ steps.cache-ffmpeg-restore.outputs.cache-hit != 'true' }}
@@ -189,7 +188,7 @@ jobs:
 
     - name: Configure CMake
       run: >
-        cmake -G "Visual Studio 17 2022" -A x64
+        cmake -G "Visual Studio 17 2022" -A x64 -T v142
         -B ${{github.workspace}}/build
         -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
         -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install

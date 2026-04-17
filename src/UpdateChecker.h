@@ -14,7 +14,6 @@
 
 class QNetworkReply;
 class QNetworkAccessManager;
-class UpdaterWindow;
 class ConfigModel;
 
 class UpdateChecker : public QObject
@@ -26,10 +25,7 @@ class UpdateChecker : public QObject
 	{
 		QString productName;
 		int build;
-		QString latestDownload;
 		QString version;
-		QString featuresUrl;
-		QString features;
 
 		void reset();
 		bool valid();
@@ -42,27 +38,17 @@ class UpdateChecker : public QObject
 	static void setUserAgent(QNetworkRequest& request);
 
   public slots:
-	void onFinishedUpdate();
 	void onFinishDownload(QNetworkReply* reply);
 
   private:
 	void parseXml(QIODevice* device);
 	void parseProduct(QXmlStreamReader& xml);
 	void parseProductInner(QXmlStreamReader& xml);
-	void onFinishDownloadXml(QNetworkReply* reply);
-	void onFinishDownloadFeatures(QNetworkReply* reply);
-	void askUserForUpdate();
+	void notifyUserOfUpdate();
 
   private:
-	enum class Loading
-	{
-		mainXml,
-		features,
-	} loading;
-
 	QNetworkAccessManager* m_mgr;
 	version_info_t m_verInfo;
-	UpdaterWindow* m_updater;
 	ConfigModel* m_config;
 	bool m_explicitCheck;
 };

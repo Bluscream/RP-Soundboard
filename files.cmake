@@ -54,8 +54,4 @@ set(sources
 	src/ts3log.h
 	src/UpdateChecker.cpp
 	src/UpdateChecker.h
-	src/updater.ui
-	src/UpdaterWindow.cpp
-	src/UpdaterWindow.h
-	src/UpdaterWindow.ui
 )

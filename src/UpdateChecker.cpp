@@ -15,28 +15,22 @@
 // <versionDescription>
 //   <product descVersion="1" name="rp_soundboard">
 //     <latestVersion>1101</latestVersion>
-//     <latestDownload>
-//       <url>http://mgraefe.de/rpsb/dl/rp_soundboard_1101.ts3_plugin</url>
-//     </latestDownload>
-//	   <featureUrl>http://mgraefe.de/rpsb/version/features_1101.txt</featureUrl>
 //   </product>
 // </versionDescription>
 
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QMessageBox>
-#include <QFileInfo>
-#include <QDir>
 #include <QDateTime>
 
 #include "buildinfo.h"
 
 #include "UpdateChecker.h"
 #include "ts3log.h"
-#include "UpdaterWindow.h"
 #include "ConfigModel.h"
 
 #define CHECK_URL "https://mgraefe.de/rpsb/version/version.xml"
+#define GITHUB_URL "https://github.com/MGraefe/RP-Soundboard/releases"
 
 
 std::string toStdStringUtf8(const QString& str)
@@ -54,7 +48,6 @@ bool isValid(const QXmlStreamReader& xml)
 
 UpdateChecker::UpdateChecker(QObject* parent /*= nullptr*/) :
 	QObject(parent),
-	m_updater(nullptr),
 	m_config(nullptr),
 	m_explicitCheck(false)
 {
@@ -77,80 +70,38 @@ void UpdateChecker::startCheck(bool explicitCheck, ConfigModel* config)
 	QNetworkRequest request;
 	request.setUrl(url);
 	setUserAgent(request);
-	loading = Loading::mainXml;
 	m_mgr->get(request);
 }
 
 
 void UpdateChecker::onFinishDownload(QNetworkReply* reply)
 {
-	switch (loading)
-	{
-	case Loading::mainXml:
-		onFinishDownloadXml(reply);
-		break;
-	case Loading::features:
-		onFinishDownloadFeatures(reply);
-		break;
-	}
-}
-
-
-void UpdateChecker::onFinishDownloadXml(QNetworkReply* reply)
-{
 	if (reply->error() != QNetworkReply::NoError)
 	{
 		std::string err = toStdStringUtf8(reply->errorString());
 		logError("UpdateChecker: Error requesting version document %s.\nError-String: %s", CHECK_URL, err.c_str());
+		return;
 	}
-	else
-	{
-		parseXml(reply);
-		if (m_verInfo.valid() && m_verInfo.build > buildinfo_getVersionNumber(3))
-		{
-			if (!m_verInfo.featuresUrl.isEmpty())
-			{
-				QNetworkRequest request;
-				request.setUrl(QUrl(m_verInfo.featuresUrl));
-				setUserAgent(request);
-				loading = Loading::features;
-				m_mgr->get(request);
-			}
-			else
-				askUserForUpdate();
-		}
-		else // no new version
-		{
-			if (m_config)
-			{
-				// No update found -> don't bother checking again for a day
-				uint currentTime = QDateTime::currentDateTime().toTime_t();
-				m_config->setNextUpdateCheck(currentTime + 60 * 60 * 24);
-			}
 
-			if (m_explicitCheck)
-			{
-				QMessageBox::information(nullptr, "Update Check", "Your version of RP Soundboard is up to date.");
-			}
+	parseXml(reply);
+	if (m_verInfo.valid() && m_verInfo.build > buildinfo_getVersionNumber(3))
+	{
+		notifyUserOfUpdate();
+	}
+	else // no new version
+	{
+		if (m_config)
+		{
+			// No update found -> don't bother checking again for 3 days
+			uint currentTime = QDateTime::currentDateTime().toTime_t();
+			m_config->setNextUpdateCheck(currentTime + 60 * 60 * 24 * 3);
+		}
+
+		if (m_explicitCheck)
+		{
+			QMessageBox::information(nullptr, "Update Check", "Your version of RP Soundboard is up to date.");
 		}
 	}
-}
-
-
-void UpdateChecker::onFinishDownloadFeatures(QNetworkReply* reply)
-{
-	if (reply->error() != QNetworkReply::NoError)
-	{
-		std::string err = toStdStringUtf8(reply->errorString());
-		std::string url = toStdStringUtf8(reply->url().toString());
-		logError("UpdateChecker: Error requesting features document %s.\nError-String: %s", url.c_str(), err.c_str());
-	}
-	else
-	{
-		m_verInfo.features = reply->readAll();
-	}
-
-	askUserForUpdate();
 }
 
 
@@ -200,91 +151,33 @@ void UpdateChecker::parseProductInner(QXmlStreamReader& xml)
 		xml.readNext();
 		m_verInfo.version = xml.text().toString();
 	}
-	else if (xml.name() == "latestDownload")
-	{
-		xml.readNext();
-		while (isValid(xml) && !(xml.tokenType() == QXmlStreamReader::EndElement && xml.name() == "latestDownload"))
-		{
-			if (xml.tokenType() == QXmlStreamReader::StartElement && xml.name() == "url")
-			{
-				xml.readNext();
-				m_verInfo.latestDownload = xml.text().toString();
-			}
-			xml.readNext();
-		}
-	}
-	else if (xml.name() == "featuresUrl")
-	{
-		xml.readNext();
-		m_verInfo.featuresUrl = xml.text().toString();
-	}
 }
 
 
-void UpdateChecker::askUserForUpdate()
+void UpdateChecker::notifyUserOfUpdate()
 {
-	QMessageBox msgBox0;
-	msgBox0.setTextFormat(Qt::RichText);
-	msgBox0.setText(QString(
+	QString versionLabel = m_verInfo.version.isEmpty() ? QString("build %1").arg(m_verInfo.build) : m_verInfo.version;
+
+	QMessageBox msgBox;
+	msgBox.setTextFormat(Qt::RichText);
+	msgBox.setText(QString(
 						"A new version of RP Soundboard is available (%1).<br /><br />"
-						"Would you like to download and install it?"
+						"You can download it here: <a href=\"%2\">%2</a>"
 	)
-						.arg(m_verInfo.version));
-	msgBox0.setIcon(QMessageBox::Information);
-	msgBox0.setWindowTitle("New version of RP Soundboard!");
-	msgBox0.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-	msgBox0.setDefaultButton(QMessageBox::Yes);
-	if (m_verInfo.features.length() > 0)
-		msgBox0.setDetailedText(m_verInfo.features);
-	if (msgBox0.exec() == QMessageBox::Yes)
-	{
-		QUrl url(m_verInfo.latestDownload);
-		QFileInfo info(QDir::temp(), url.fileName());
-		m_updater = new UpdaterWindow();
-		connect(m_updater, SIGNAL(finished()), this, SLOT(onFinishedUpdate()));
-		m_updater->show();
-		m_updater->startDownload(url, info, true);
-	}
-	else
-	{
-		if (m_config)
-		{
-			// Don't bother user for 3 days
-			uint currentTime = QDateTime::currentDateTime().toTime_t();
-			m_config->setNextUpdateCheck(currentTime + 60 * 60 * 24 * 3);
-		}
-	}
-}
+						.arg(versionLabel)
+						.arg(GITHUB_URL));
+	msgBox.setIcon(QMessageBox::Information);
+	msgBox.setWindowTitle("New version of RP Soundboard!");
+	msgBox.setStandardButtons(QMessageBox::Ok);
+	msgBox.setDefaultButton(QMessageBox::Ok);
+	msgBox.exec();
 
-
-void UpdateChecker::onFinishedUpdate()
-{
-	if (m_updater->getSuccess())
+	if (m_config)
 	{
-		QApplication::closeAllWindows();
+		// Don't bother user for 3 days
+		uint currentTime = QDateTime::currentDateTime().toTime_t();
+		m_config->setNextUpdateCheck(currentTime + 60 * 60 * 24 * 3);
 	}
-	else
-	{
-		QMessageBox msgBox;
-		msgBox.setTextFormat(Qt::RichText);
-		msgBox.setText(QString(
-						   "The Update to %1 failed.<br /><br />"
-						   "Please download it manually here: <br /><a href=\"%2\">%2</a>"
-		)
-						   .arg(
-							   m_verInfo.version.isEmpty() ? QString("build %1").arg(m_verInfo.build)
-														   : QString("version %1").arg(m_verInfo.version)
-						   )
-						   .arg(m_verInfo.latestDownload));
-		msgBox.setIcon(QMessageBox::Information);
-		msgBox.setWindowTitle("Update failed");
-		msgBox.setStandardButtons(QMessageBox::Close);
-		msgBox.setDefaultButton(QMessageBox::Close);
-		msgBox.exec();
-	}
-
-	m_updater->deleteLater();
-	m_updater = nullptr;
 }
 
 
@@ -292,17 +185,13 @@ void UpdateChecker::version_info_t::reset()
 {
 	productName = QString();
 	build = 0;
-	latestDownload = QString();
 	version = QString();
-	featuresUrl = QString();
-	features = QString();
 }
 
 
 bool UpdateChecker::version_info_t::valid()
 {
-	return !productName.isNull() && !productName.isEmpty() && !latestDownload.isNull() && !latestDownload.isEmpty() &&
-		   build > 0;
+	return !productName.isNull() && !productName.isEmpty() && build > 0;
 }
 
 

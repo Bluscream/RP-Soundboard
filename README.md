@@ -5,7 +5,6 @@ A simple yet powerful soundboard that requires no complicated setup! Just instal
 It comes with a set of predefined sounds but of course you can choose your own.
 
 # Download and Info
-- Official page and downloads: https://www.myteamspeak.com/addons/9e5d66d9-b951-4f46-9b08-0e62909235ee
 - Manual downloads: https://github.com/MGraefe/RP-Soundboard/releases
 
 # Features

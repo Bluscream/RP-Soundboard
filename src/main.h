@@ -41,6 +41,7 @@ void sb_onHotkeyRecordedEvent(const char* keyword, const char* key);
 void sb_onStopTalking();
 void sb_onHotkeyPressed(const char* keyword);
 void sb_checkForUpdates();
+void sb_resetFirstTimeUsage();
 int sb_parseCommand(char**, int);
 void sb_disableHotkeysTemporarily(bool disable);
 

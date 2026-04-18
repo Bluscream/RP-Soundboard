@@ -235,6 +235,7 @@ extern "C"
 		MENU_ID_SHOW_CONFIG = 1,
 		MENU_ID_SHOW_ABOUT,
 		MENU_ID_CHECK_FOR_UPDATES,
+		MENU_ID_RESET_FIRST_TIME_USAGE,
 	};
 
 	/*
@@ -262,10 +263,19 @@ extern "C"
 		 * <TeamSpeak 3 Client install dir>\plugins\test_plugin\1.png
 		 */
 
+#ifdef _DEBUG
+		BEGIN_CREATE_MENUS(4); /* IMPORTANT: Number of menu items must be correct! */
+#else
 		BEGIN_CREATE_MENUS(3); /* IMPORTANT: Number of menu items must be correct! */
+#endif
 		CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_GLOBAL, MENU_ID_SHOW_CONFIG, "Open Soundboard", "rpmb_icon_16.png");
 		CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_GLOBAL, MENU_ID_SHOW_ABOUT, "About", "rpmb_icon_16.png");
 		CREATE_MENU_ITEM(PLUGIN_MENU_TYPE_GLOBAL, MENU_ID_CHECK_FOR_UPDATES, "Check for update", "rpmb_icon_16.png");
+#ifdef _DEBUG
+		CREATE_MENU_ITEM(
+			PLUGIN_MENU_TYPE_GLOBAL, MENU_ID_RESET_FIRST_TIME_USAGE, "Reset first time usage (debug)", "rpmb_icon_16.png"
+		);
+#endif
 		END_CREATE_MENUS; /* Includes an assert checking if the number of menu items matched */
 
 		/*
@@ -445,6 +455,9 @@ extern "C"
 				break;
 			case MENU_ID_CHECK_FOR_UPDATES:
 				sb_checkForUpdates();
+				break;
+			case MENU_ID_RESET_FIRST_TIME_USAGE:
+				sb_resetFirstTimeUsage();
 				break;
 			default:
 				break;

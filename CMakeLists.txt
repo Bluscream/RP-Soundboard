@@ -87,6 +87,10 @@ set_target_properties(rp_soundboard PROPERTIES
 	RUNTIME_OUTPUT_DIRECTORY_RELEASE release
 )
 
+target_compile_definitions(rp_soundboard PRIVATE
+	$<IF:$<CONFIG:Debug>,_DEBUG,NDEBUG>
+)
+
 # Special platform dependent compile options
 if (MSVC)
 	target_sources(rp_soundboard PRIVATE "src/windows/resource.h" "src/windows/Resource.rc")

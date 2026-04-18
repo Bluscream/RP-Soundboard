@@ -15,13 +15,16 @@
 // <versionDescription>
 //   <product descVersion="1" name="rp_soundboard">
 //     <latestVersion>1101</latestVersion>
+//	   <featureUrl>http://mgraefe.de/rpsb/version/features_1101.txt</featureUrl>
 //   </product>
 // </versionDescription>
 
+#include <QAbstractButton>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QMessageBox>
 #include <QDateTime>
+#include <QTimer>
 
 #include "buildinfo.h"
 
@@ -29,7 +32,11 @@
 #include "ts3log.h"
 #include "ConfigModel.h"
 
-#define CHECK_URL "https://mgraefe.de/rpsb/version/version.xml"
+#ifdef _DEBUG
+	#define CHECK_URL "https://mgraefe.de/rpsb/version/version_debug.xml"
+#else
+	#define CHECK_URL "https://mgraefe.de/rpsb/version/version.xml"
+#endif
 #define GITHUB_URL "https://github.com/MGraefe/RP-Soundboard/releases"
 
 
@@ -70,23 +77,55 @@ void UpdateChecker::startCheck(bool explicitCheck, ConfigModel* config)
 	QNetworkRequest request;
 	request.setUrl(url);
 	setUserAgent(request);
+	loading = Loading::mainXml;
 	m_mgr->get(request);
 }
 
 
 void UpdateChecker::onFinishDownload(QNetworkReply* reply)
 {
+	switch (loading)
+	{
+	case Loading::mainXml:
+		onFinishDownloadXml(reply);
+		break;
+	case Loading::features:
+		onFinishDownloadFeatures(reply);
+		break;
+	}
+}
+
+
+void UpdateChecker::onFinishDownloadXml(QNetworkReply* reply)
+{
 	if (reply->error() != QNetworkReply::NoError)
 	{
 		std::string err = toStdStringUtf8(reply->errorString());
 		logError("UpdateChecker: Error requesting version document %s.\nError-String: %s", CHECK_URL, err.c_str());
+		if (m_explicitCheck)
+		{
+			QMessageBox::warning(
+				nullptr,
+				"Update Check",
+				QString("Could not check for updates.\n\n%1").arg(reply->errorString())
+			);
+		}
 		return;
 	}
 
 	parseXml(reply);
 	if (m_verInfo.valid() && m_verInfo.build > buildinfo_getVersionNumber(3))
 	{
-		notifyUserOfUpdate();
+		if (!m_verInfo.featuresUrl.isEmpty())
+		{
+			QNetworkRequest request;
+			request.setUrl(QUrl(m_verInfo.featuresUrl));
+			setUserAgent(request);
+			loading = Loading::features;
+			m_mgr->get(request);
+		}
+		else
+			notifyUserOfUpdate();
 	}
 	else // no new version
 	{
@@ -102,6 +141,23 @@ void UpdateChecker::onFinishDownload(QNetworkReply* reply)
 			QMessageBox::information(nullptr, "Update Check", "Your version of RP Soundboard is up to date.");
 		}
 	}
+}
+
+
+void UpdateChecker::onFinishDownloadFeatures(QNetworkReply* reply)
+{
+	if (reply->error() != QNetworkReply::NoError)
+	{
+		std::string err = toStdStringUtf8(reply->errorString());
+		std::string url = toStdStringUtf8(reply->url().toString());
+		logError("UpdateChecker: Error requesting features document %s.\nError-String: %s", url.c_str(), err.c_str());
+	}
+	else
+	{
+		m_verInfo.features = reply->readAll();
+	}
+
+	notifyUserOfUpdate();
 }
 
 
@@ -151,6 +207,11 @@ void UpdateChecker::parseProductInner(QXmlStreamReader& xml)
 		xml.readNext();
 		m_verInfo.version = xml.text().toString();
 	}
+	else if (xml.name() == "featuresUrl")
+	{
+		xml.readNext();
+		m_verInfo.featuresUrl = xml.text().toString();
+	}
 }
 
 
@@ -170,6 +231,22 @@ void UpdateChecker::notifyUserOfUpdate()
 	msgBox.setWindowTitle("New version of RP Soundboard!");
 	msgBox.setStandardButtons(QMessageBox::Ok);
 	msgBox.setDefaultButton(QMessageBox::Ok);
+	if (m_verInfo.features.length() > 0)
+	{
+		msgBox.setDetailedText(m_verInfo.features);
+		// QMessageBox hides the detailed text behind a "Show Details..." button. Click it
+		// once the event loop runs so the details are visible by default.
+		QTimer::singleShot(0, &msgBox, [&msgBox]() {
+			for (QAbstractButton* btn : msgBox.buttons())
+			{
+				if (msgBox.buttonRole(btn) == QMessageBox::ActionRole)
+				{
+					btn->click();
+					break;
+				}
+			}
+		});
+	}
 	msgBox.exec();
 
 	if (m_config)
@@ -186,6 +263,8 @@ void UpdateChecker::version_info_t::reset()
 	productName = QString();
 	build = 0;
 	version = QString();
+	featuresUrl = QString();
+	features = QString();
 }
 
 

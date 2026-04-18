@@ -26,6 +26,8 @@ class UpdateChecker : public QObject
 		QString productName;
 		int build;
 		QString version;
+		QString featuresUrl;
+		QString features;
 
 		void reset();
 		bool valid();
@@ -44,9 +46,17 @@ class UpdateChecker : public QObject
 	void parseXml(QIODevice* device);
 	void parseProduct(QXmlStreamReader& xml);
 	void parseProductInner(QXmlStreamReader& xml);
+	void onFinishDownloadXml(QNetworkReply* reply);
+	void onFinishDownloadFeatures(QNetworkReply* reply);
 	void notifyUserOfUpdate();
 
   private:
+	enum class Loading
+	{
+		mainXml,
+		features,
+	} loading;
+
 	QNetworkAccessManager* m_mgr;
 	version_info_t m_verInfo;
 	ConfigModel* m_config;
